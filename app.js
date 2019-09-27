@@ -15,7 +15,6 @@ myClient.getTeamsAtWeek({ seasonId: seasonYear, scoringPeriodId: current_week })
     });
     // console.log("============================================");
 }).then(
-    console.log(Team.cache);
     myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: current_week, matchupPeriodId: current_week }).then((boxscores) => {
 
         boxscores.forEach( (boxscore) => {
