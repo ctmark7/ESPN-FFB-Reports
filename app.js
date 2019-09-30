@@ -16,7 +16,6 @@ myClient.getTeamsAtWeek({ seasonId: seasonYear, scoringPeriodId: current_week })
     // console.log("============================================");
 }).then(
     myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: current_week, matchupPeriodId: current_week }).then((boxscores) => {
-
         boxscores.forEach( (boxscore) => {
             if (boxscore.homeTeamId != 0 ) {
                 getCachedTeams(boxscore, printScores);
@@ -32,10 +31,16 @@ function getCachedTeams(boxscore, callback) {
     callback(homeTeam, awayTeam, boxscore);
 }
 function printScores(homeTeam, awayTeam, boxscore) {
-    console.log(`2018 Score: ${homeTeam.abbreviation}: ${roundStarters(boxscore.homeRoster)}--${roundStarters(boxscore.awayRoster)} :${awayTeam.abbreviation}`);
-    // console.log(`2019 Score: ${homeTeam.name}: ${boxscore.homeScore}--${boxscore.awayScore} :${awayTeam.name}`);  
+    let oldHomeScore = roundStarters(boxscore.homeRoster);
+    let oldAwayScore = roundStarters(boxscore.awayRoster);
+    if (checkForResultVariant(oldHomeScore, oldAwayScore, boxscore)) {
+        const result = getMatchupResult(oldHomeScore, oldAwayScore);
+        console.log(`${result == 1 ? 'Home Win' : (result == -1 ? 'Away win' : 'TIE AHAHAHAH')} 2018 Score: ${homeTeam.abbreviation}: ${oldHomeScore}--${oldAwayScore} :${awayTeam.abbreviation}`);
+    }
+    console.log(`2019 Score: ${homeTeam.abbreviation}: ${boxscore.homeScore}--${boxscore.awayScore} :${awayTeam.abbreviation}`);  
 }
 // takes in array of BoxscorePlayers
+// returns summation of each player's rounded score (according to 2018 scoring rules)
 function roundStarters(roster) {
     let roundedTotal = 0;
     roster.forEach( (player) => {
@@ -61,5 +66,16 @@ function roundPlayerScore(player) {
     }
     roundedScore = Math.floor(baseScore - summedBreakdown) + roundedBreakdown;
     return roundedScore;
+}
+// returns 1:homeWin, 0:tie, -1:awayWin
+function getMatchupResult(homeScore, awayScore) {
+    return homeScore > awayScore ? 1 : (homeScore < awayScore ? -1 : 0);
+}
+// takes in a cached homeTeam/awayTeam boxscore, compares 2019 score with 2018 score
+// returns true/false if the result (W/L/T) differs from 2019-2018
+function checkForResultVariant(oldHomeScore, oldAwayScore, boxscore) {
+    const matchResult = getMatchupResult(boxscore.homeScore, boxscore.awayScore);
+    return (matchResult !== getMatchupResult(oldHomeScore, oldAwayScore));
 
+    
 }
