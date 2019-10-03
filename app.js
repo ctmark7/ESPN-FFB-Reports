@@ -18,17 +18,27 @@ myClient.getTeamsAtWeek({ seasonId: seasonYear, scoringPeriodId: current_week })
     myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: current_week, matchupPeriodId: current_week }).then((boxscores) => {
         boxscores.forEach( (boxscore) => {
             if (boxscore.homeTeamId != 0 ) {
-                getCachedTeams(boxscore, printScores);
+                getCachedTeams(boxscore, printMatchup);
+                const homeOptimalRoster = maxTeamScore(boxscore.homeRoster)
+                const awayOptimalRoster = maxTeamScore(boxscore.awayRoster)
+
+                // console.log(optimalRoster);
+                console.log("Actual Score:        " + boxscore.homeScore + ' - ' + boxscore.awayScore);
+                console.log("Max Possible Scores: " + sumStarters(homeOptimalRoster) + ' - ' + sumStarters(awayOptimalRoster) + "\n");
             }
         });
         // console.log("============================================");
-    }).catch( (error) => console.error(error)));
+    }).catch( (error) => console.error(error.Error)));
 
 function getCachedTeams(boxscore, callback) {
     homeTeam = Team.get(`id=${boxscore.homeTeamId};leagueId=${leagueId};seasonId=${seasonYear};`);
     awayTeam = Team.get(`id=${boxscore.awayTeamId};leagueId=${leagueId};seasonId=${seasonYear};`);
     // if (!homeTeam && !awayTeam) console.log(Team.cache);
     callback(homeTeam, awayTeam, boxscore);
+}
+
+function printMatchup(homeTeam, awayTeam, boxscore) {
+    console.log(`${homeTeam.name} vs. ${awayTeam.name}`);
 }
 function printScores(homeTeam, awayTeam, boxscore) {
     let oldHomeScore = roundStarters(boxscore.homeRoster);
@@ -76,6 +86,56 @@ function getMatchupResult(homeScore, awayScore) {
 function checkForResultVariant(oldHomeScore, oldAwayScore, boxscore) {
     const matchResult = getMatchupResult(boxscore.homeScore, boxscore.awayScore);
     return (matchResult !== getMatchupResult(oldHomeScore, oldAwayScore));
+}
 
-    
+function sumStarters(roster) {
+    let sum = 0;
+    for (i in roster) {
+        const position = roster[i];
+        position.forEach( (player) => sum += player.totalPoints);
+    }
+    return sum;
+}
+
+function sortRosterByScore(roster) {
+    let sorted = [];
+    roster.forEach( (slot) => {
+        let rosterPlayer = {
+            'name': slot.player.fullName, 
+            'pos': slot.player.defaultPosition,
+            'totalPoints': slot.totalPoints
+        }
+        sorted.push(rosterPlayer);
+    });
+    return sorted.sort((a,b) => a.totalPoints < b.totalPoints ? 1 : -1);
+}
+function maxTeamScore(roster) {
+    let maxRoster = {
+        'TQB': [],   // TQB
+        'RB':[],    // RB
+        'RB/WR':[],    // WR
+        'WR':[],    // TE
+        'FLEX':[],  // [RB/WR, RB, WR]
+        'WR/TE':[],     // K
+        'D/ST':[]   // D/ST
+    };
+    let activeRosterSize = 0;
+    let rosterByScore = sortRosterByScore(roster);
+    for (i in rosterByScore) {
+        let player = rosterByScore[i];
+        if (activeRosterSize == 9) break;
+        if ((player.pos == 'RB/WR' || player.pos == 'RB') && maxRoster[player.pos].length < 2) { // max limit === 2
+            maxRoster[player.pos].push(player);
+            activeRosterSize++;
+        }
+        else if (maxRoster[player.pos].length < 1) {
+            maxRoster[player.pos].push(player);
+            activeRosterSize++;
+        }
+        else if ((player.pos == 'RB/WR' || player.pos == 'RB' || player.pos == 'WR') && maxRoster.FLEX.length < 1) {
+            maxRoster.FLEX.push(player);
+            activeRosterSize++;
+        }
+    }
+    return maxRoster;
 }
