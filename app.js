@@ -1,5 +1,5 @@
 const { Client, Team, BoxScore} = require('espn-fantasy-football-api/node-dev');
-
+const axios = require('axios');
 const myClient = new Client({ leagueId: 564127 });
 const myEspns2 = 'AEAhcHpaQrwFj9PFxcPnkBzat3IbrqJuKYi%2B4UseqG5zZ8NnyYYa2WTURjO2LGwpK2nUnk8VJLQlpW6y8dNPgmjjfxuarOLRP%2B5z0diP0Zh%2B3PlnjTV3ooDsqwkUs7DDngkNWZpp2cl%2BrrrHETkYX3a9SVLX2AUoui6GABkDaKkh78f9pd5XJ0rFpwEtN%2BrDR%2FMRGQD%2FbLPs2UcaofWglevjwpV9t1wUms%2BdEPpe1m3COkIqIfVvM5JWR5CTIM63iWY%3D'
 const mySWID = '{2690D5F2-9AD4-4259-90D5-F29AD4525943}'
@@ -8,11 +8,15 @@ const leagueId = 564127;
 const current_week = 8;
 myClient.setCookies({ espnS2: myEspns2, SWID: mySWID });
 
-main();
-// tryingAsync();
+// main();
+tryingAsync();
 async function tryingAsync() {
-    let simulatedWeek = await simulateWeek(current_week);
-    console.log(simulatedWeek);
+    let fullSchedule = await getLeagueSchedule()//simulateWeek(current_week);
+    const myPlayedGames = fullSchedule.filter((matchup) => {
+        return matchup.winner != 'UNDECIDED' && (matchup.away.teamId === 2 || matchup.home.teamId === 2);
+    });
+    console.log(myPlayedGames);
+    return;
 }
 
 // current method of making API call EACH WEEK via getBoxScoreforWeek TOO MUCH/slow, need just 1 API call... see below
@@ -20,16 +24,22 @@ async function tryingAsync() {
 // "schedule" is the field that has al lof the matchups
 // look for already played weeks... where "winner" != "UNDECIDED"
 // 
-async function getWeekAvgScore(week) {
-    let boxscores  = await myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: current_week, matchupPeriodId: current_week });
-    let sumScores = 0;
-    let numTeams = 0;
-    boxscores.forEach(matchup => {
-        sumScores += matchup.homeScore + matchup.awayScore;
-        numTeams += 2;
-    });
-
-    return await Math.round(sumScores / numTeams, 2);
+async function getLeagueSchedule() {
+    const routeBase = `http://fantasy.espn.com/apis/v3/games/ffl/seasons/${seasonYear}/segments/0/leagues/${leagueId}/`;
+    const routeParams = "?view=mMatchupScore&view=modular";
+    const route = "".concat(routeBase, routeParams);
+    try {
+        const response  = await axios.get(route, { 
+            headers: {
+                Cookie: `espn_s2=${myEspns2}; SWID=${mySWID};`
+            }
+        });
+        const schedule = response.data.schedule;
+        return schedule
+    } catch (error) {
+        console.log(error.response.data);
+        return "error haha";
+    }
 
 }
 async function main() {
