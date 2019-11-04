@@ -8,25 +8,38 @@ const leagueId = 564127;
 const current_week = 8;
 myClient.setCookies({ espnS2: myEspns2, SWID: mySWID });
 
-// main();
-tryingAsync();
-async function tryingAsync() {
-    let fullSchedule = await getLeagueSchedule()//simulateWeek(current_week);
-    const myPlayedGames = fullSchedule.filter((matchup) => {
-        return matchup.winner != 'UNDECIDED' && (matchup.away.teamId === 2 || matchup.home.teamId === 2);
+main();
+// tryingAsync();
+function getSortedScoresByWeek(schedule) {
+    const playedGames = schedule.filter((matchup) => {
+        return matchup.winner != 'UNDECIDED'; //&& matchup.matchupPeriodId < 3;
+    }).map((matchup) => {
+        return {
+            "matchupPeriodId": matchup.matchupPeriodId,
+            "scores":[{"teamId": matchup.home.teamId, "score":matchup.home.totalPoints},
+                      {"teamId": matchup.away.teamId, "score":matchup.away.totalPoints}]
+        };
+    }).reduce((acc, matchup) => {
+        acc[matchup.matchupPeriodId] = matchup.matchupPeriodId in acc ? acc[matchup.matchupPeriodId].concat(...matchup.scores) : matchup.scores;
+        return acc;
+    },{});
+    
+    // sort each week's scores descending
+    Object.keys(playedGames).forEach( (week) => {
+        playedGames[week] = playedGames[week].sort((a,b) => a.score < b.score ? 1 : -1);
     });
-    console.log(myPlayedGames);
-    return;
+    // console.log(playedGames);
+    return playedGames;
 }
 
 // current method of making API call EACH WEEK via getBoxScoreforWeek TOO MUCH/slow, need just 1 API call... see below
-//make a axios.get HTTP call to "http://fantasy.espn.com/apis/v3/games/ffl/seasons/2019/segments/0/leagues/564127?&view=mMatchupScore&view=modular"
+//make a axios.get HTTP call to "http://fantasy.espn.com/apis/v3/games/ffl/seasons/2019/segments/0/leagues/564127/?view=mMatchupScore&view=modular"
 // "schedule" is the field that has al lof the matchups
 // look for already played weeks... where "winner" != "UNDECIDED"
 // 
-async function getLeagueSchedule() {
+async function getLeagueData() {
     const routeBase = `http://fantasy.espn.com/apis/v3/games/ffl/seasons/${seasonYear}/segments/0/leagues/${leagueId}/`;
-    const routeParams = "?view=mMatchupScore&view=modular";
+    const routeParams = "?view=mTeam&view=mMatchupScore&view=modular";
     const route = "".concat(routeBase, routeParams);
     try {
         const response  = await axios.get(route, { 
@@ -34,14 +47,13 @@ async function getLeagueSchedule() {
                 Cookie: `espn_s2=${myEspns2}; SWID=${mySWID};`
             }
         });
-        const schedule = response.data.schedule;
-        return schedule
+        return response.data;
     } catch (error) {
         console.log(error.response.data);
         return "error haha";
     }
-
 }
+
 async function main() {
     class simTeam {
         constructor(id, name, abbreviation) {
@@ -54,26 +66,43 @@ async function main() {
             this.losses = 0;
         }
     }
-    simulatedTeams = {};
-    const teams = await myClient.getTeamsAtWeek({ seasonId: seasonYear, scoringPeriodId: current_week })
-    teams.forEach( (team) => {
+    const leagueData = await getLeagueData();
+    let simulatedTeams = {};
+    leagueData.teams.forEach( (team) => {
         team.cache;
-        let tempTeam = new simTeam(team.id, team.name, team.abbreviation);
+        let tempTeam = new simTeam(team.id, team.location.concat(" " + team.nickname), team.abbrev);
         simulatedTeams[team.id] = tempTeam;
+        simulatedTeams[team.id].totalPoints = team.points.toFixed(2);
+    });
+    const playedGames = getSortedScoresByWeek(leagueData.schedule); //{week1: [{teamId:x, score:x-desc. order }, ...] week2:...}
+    // console.log(playedGames);
+    Object.keys(playedGames).forEach( (week) => {
+        const weekScores = playedGames[week];
+        for (let i=0;i<weekScores.length;i++) {
+            const team = weekScores[i];
+            let fOffset = 1;
+            let bOffset = 1;
+            while (i + fOffset < weekScores.length && weekScores[i + fOffset].score == weekScores[i].score) {
+                fOffset++;
+            }
+            while (i - bOffset >= 0 && weekScores[i - bOffset].score == weekScores[i].score) {
+                bOffset++;
+            }
+            simulatedTeams[team.teamId].wins += weekScores.length - i - 1 - (fOffset - 1);
+            simulatedTeams[team.teamId].losses += i - (bOffset - 1);
+            simulatedTeams[team.teamId].ties += (fOffset - 1) + (bOffset - 1);
+        }
     });
     // console.log(simulatedTeams);
-    for (let i=1; i <= current_week; i++) {
-        let xWeekScores =  await simulateWeek(i);
-        xWeekScores.forEach(team => {
-            simulatedTeams[team.teamId].wins += team.wins;
-            simulatedTeams[team.teamId].ties += team.ties;
-            simulatedTeams[team.teamId].losses += team.losses;
-            simulatedTeams[team.teamId].totalPoints += team.score;
-        });
-    }
-    // console.log(simulatedTeams);
+    let sortedTeams = [];
     Object.keys(simulatedTeams).forEach( (id) => {
-        console.log(`${simulatedTeams[id].name}: ${simulatedTeams[id].wins}-${simulatedTeams[id].ties}-${simulatedTeams[id].losses}`);
+        sortedTeams.push(simulatedTeams[id]);
+    });
+    sortedTeams.sort((a,b) => a.wins < b.wins ? 1 : -1);
+    sortedTeams.forEach( (team) => {
+        let output = `${team.name}: ${team.wins}-${team.losses}`;
+        if (team.ties > 0) output.concat(`-${team.ties}`);
+        console.log(output);
     });
         // myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: current_week, matchupPeriodId: current_week }).then((boxscores) => {
         //    console.log(`=================== Week ${current_week} Scores ===================`);
@@ -144,16 +173,6 @@ function roundPlayerScore(player) {
     roundedScore = Math.floor(baseScore - summedBreakdown) + roundedBreakdown;
     return roundedScore;
 }
-// returns 1:homeWin, 0:tie, -1:awayWin
-function getMatchupResult(homeScore, awayScore) {
-    return homeScore > awayScore ? 1 : (homeScore < awayScore ? -1 : 0);
-}
-// takes in a cached homeTeam/awayTeam boxscore, compares 2019 score with 2018 score
-// returns true/false if the result (W/L/T) differs from 2019-2018
-function checkForResultVariant(oldHomeScore, oldAwayScore, boxscore) {
-    const matchResult = getMatchupResult(boxscore.homeScore, boxscore.awayScore);
-    return (matchResult !== getMatchupResult(oldHomeScore, oldAwayScore));
-}
 
 function sumStarters(roster) {
     let sum = 0;
@@ -211,46 +230,4 @@ function maxTeamScore(roster) {
     return maxRoster;
 }
 
-async function simulateWeek(week){
-    // cache all teams in league
-    // for each week from 1 - n
-    // sort week's scores, in object ({cached team: score for week i},...)
-    // for each team in week, find team in sorted array, calculate their summed record on the week by their position in Array
-    let weekScores = []; // [{teamId:n,score:n}]
-    let boxscores = await myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: week, matchupPeriodId: week });
-    boxscores.forEach((boxscore) => {
-        weekScores.push({teamId: boxscore.homeTeamId, score: boxscore.homeScore});
-        weekScores.push({teamId: boxscore.awayTeamId, score: boxscore.awayScore});
-        // console.log(boxscore.homeScore, boxscore.awayScore);
-    });
-    weekScores.sort((a,b) => a.score < b.score ? 1 : -1)
-        // weekScores = [ { teamId: 2, score: 176.4 },
-        //     { teamId: 10, score: 158.4 },
-        //     { teamId: 12, score: 147 },
-        //     { teamId: 8, score: 128.9 },
-        //     { teamId: 16, score: 128.9 },
-        //     { teamId: 3, score: 128.9 },
-        //     { teamId: 4, score: 115.9 },
-        //     { teamId: 13, score: 111.7 },
-        //     { teamId: 14, score: 97.7 },
-        //     { teamId: 9, score: 91.7 },
-        //     { teamId: 5, score: 88.7 },
-        //     { teamId: 1, score: 87.9 },
-        //     { teamId: 7, score: 86.7 },
-        //     { teamId: 6, score: 78.4 } ];
-    for (let i=0;i<weekScores.length;i++) {
-        let fOffset = 1;
-        let bOffset = 1;
-        while (i + fOffset < weekScores.length && weekScores[i + fOffset].score == weekScores[i].score) {
-            fOffset++;
-        }
-        while (i - bOffset >= 0 && weekScores[i - bOffset].score == weekScores[i].score) {
-            bOffset++;
-        }
-        weekScores[i].wins = weekScores.length - i - 1 - (fOffset - 1);
-        weekScores[i].losses = i - (bOffset - 1);
-        weekScores[i].ties = weekScores.length - 1 - weekScores[i].wins - weekScores[i].losses;
-    }
-    // 
-    return weekScores;
-}
+
