@@ -5,10 +5,11 @@ const myEspns2 = 'AEAhcHpaQrwFj9PFxcPnkBzat3IbrqJuKYi%2B4UseqG5zZ8NnyYYa2WTURjO2
 const mySWID = '{2690D5F2-9AD4-4259-90D5-F29AD4525943}'
 const seasonYear = 2019;
 const leagueId = 564127;
-const current_week = 8;
+const current_week = 9;
 myClient.setCookies({ espnS2: myEspns2, SWID: mySWID });
 
-main();
+// main();
+getBoxScoresForWeek(9);
 // tryingAsync();
 function getSortedScoresByWeek(schedule) {
     const playedGames = schedule.filter((matchup) => {
@@ -20,7 +21,12 @@ function getSortedScoresByWeek(schedule) {
                       {"teamId": matchup.away.teamId, "score":matchup.away.totalPoints}]
         };
     }).reduce((acc, matchup) => {
-        acc[matchup.matchupPeriodId] = matchup.matchupPeriodId in acc ? acc[matchup.matchupPeriodId].concat(...matchup.scores) : matchup.scores;
+        if (matchup.matchupPeriodId in acc) {
+            acc[matchup.matchupPeriodId] = acc[matchup.matchupPeriodId].concat(...matchup.scores)
+        }
+        else {
+            acc[matchup.matchupPeriodId] = matchup.scores;
+        }
         return acc;
     },{});
     
@@ -64,6 +70,7 @@ async function main() {
             this.wins = 0;
             this.ties = 0;
             this.losses = 0;
+            this.weeklyRecord = {} // {week1: {wins:n,losses:n,ties:n}, week2:{wins:...,...}, ...}
         }
     }
     const leagueData = await getLeagueData();
@@ -88,52 +95,68 @@ async function main() {
             while (i - bOffset >= 0 && weekScores[i - bOffset].score == weekScores[i].score) {
                 bOffset++;
             }
-            simulatedTeams[team.teamId].wins += weekScores.length - i - 1 - (fOffset - 1);
-            simulatedTeams[team.teamId].losses += i - (bOffset - 1);
-            simulatedTeams[team.teamId].ties += (fOffset - 1) + (bOffset - 1);
+            const simulatedWeek = { 
+                "wins": weekScores.length - i - 1 - (fOffset - 1),
+                "losses": i - (bOffset - 1),
+                "ties": (fOffset - 1) + (bOffset - 1)
+            };
+            simulatedTeams[team.teamId].weeklyRecord[week] = simulatedWeek;
+            simulatedTeams[team.teamId].wins += simulatedWeek.wins;
+            simulatedTeams[team.teamId].losses += simulatedWeek.losses;
+            simulatedTeams[team.teamId].ties += simulatedWeek.ties;
         }
     });
     // console.log(simulatedTeams);
-    let sortedTeams = [];
-    Object.keys(simulatedTeams).forEach( (id) => {
-        sortedTeams.push(simulatedTeams[id]);
-    });
-    sortedTeams.sort((a,b) => a.wins < b.wins ? 1 : -1);
-    sortedTeams.forEach( (team) => {
+    let sortedTeams = Object.keys(simulatedTeams).map( (id) => {
+        return simulatedTeams[id];
+    }).sort((a,b) => a.wins < b.wins ? 1 : -1)
+    .forEach( (team) => {
         let output = `${team.name}: ${team.wins}-${team.losses}`;
-        if (team.ties > 0) output.concat(`-${team.ties}`);
+        if (team.ties > 0) {
+            output = output.concat(`-${team.ties}`);
+        }
         console.log(output);
     });
-        // myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: current_week, matchupPeriodId: current_week }).then((boxscores) => {
-        //    console.log(`=================== Week ${current_week} Scores ===================`);
-        //     boxscores.forEach( (boxscore) => {
-        //         if (boxscore.homeTeamId != 0 ) {
-        //             getCachedTeams(boxscore, printMatchup);
-        //             const homeOptimalRoster = maxTeamScore(boxscore.homeRoster)
-        //             const awayOptimalRoster = maxTeamScore(boxscore.awayRoster)
-
-        //             // console.log(optimalRoster);
-        //             console.log("Actual Score:        " + boxscore.homeScore + ' - ' + boxscore.awayScore);
-        //             console.log("Max Possible Scores: " + sumStarters(homeOptimalRoster) + ' - ' + sumStarters(awayOptimalRoster) + "\n");
-        //             // getCachedTeams(boxscore, printScores);
-        //             // console.log("\n");
-
-        //         }
-        //     });
-        //     // console.log("============================================");
-        // }).catch( (error) => console.error(error.Error)));
+    // console.log('\n');
+    // console.log(simulatedTeams[13].name,simulatedTeams[13].weeklyRecord); //shane
+    // console.log(simulatedTeams[9].name, simulatedTeams[9].weeklyRecord); //brendan
     }
 
-function getCachedTeams(boxscore, callback) {
-    homeTeam = Team.get(`id=${boxscore.homeTeamId};leagueId=${leagueId};seasonId=${seasonYear};`);
-    awayTeam = Team.get(`id=${boxscore.awayTeamId};leagueId=${leagueId};seasonId=${seasonYear};`);
+async function getBoxScoresForWeek(week) {
+        const leagueData = await getLeagueData();
+        const teamData = leagueData.teams.reduce( (acc,team) => {
+            acc[team.id] = {"name": team.location.concat(" "+team.nickname), "abbrev":team.abbrev};
+            return acc;
+        }, {});
+        const boxscores = await myClient.getBoxscoreForWeek({ seasonId: seasonYear, scoringPeriodId: week, matchupPeriodId: week });
+        console.log(`=================== Week ${week} Scores ===================`);
+        boxscores.forEach( (boxscore) => {
+            const homeOptimalRoster = maxTeamScore(boxscore.homeRoster);
+            const awayOptimalRoster = maxTeamScore(boxscore.awayRoster);
+            // console.log(homeOptimalRoster, awayOptimalRoster);
+            console.log(`===== ${teamData[boxscore.homeTeamId].abbrev} vs. ${teamData[boxscore.awayTeamId].abbrev} =====`);
+            console.log("Actual Score:        " + boxscore.homeScore + ' - ' + boxscore.awayScore);
+            console.log("Max Possible Scores: " + sumStarters(homeOptimalRoster) + ' - ' + sumStarters(awayOptimalRoster));
+            const homeRoundRoster = roundStarters(boxscore.homeRoster);
+            const awayRoundRoster = roundStarters(boxscore.awayRoster);
+            console.log(`2018 Score:             ${sumRoster(homeRoundRoster)} - ${sumRoster(awayRoundRoster)}\n`);
+            // if (teamData[boxscore.homeTeamId].abbrev == 'DDC' || teamData[boxscore.homeTeamId].abbrev == 'WIN') {
+            //     for (i=0; i < homeRoundRoster.length;i++) {
+            //         console.log(`${homeRoundRoster[i].player}:  ${homeRoundRoster[i].roundedScore}      -----       ${awayRoundRoster[i].roundedScore} :${awayRoundRoster[i].player}`);
+            //     };
+            // }
+            // console.log("\n");
+            // console.log("============================================");
+        });
+}
+
+async function getCachedTeams(boxscore, callback) {
+    const homeTeam = await Team.get(`id=${boxscore.homeTeamId};leagueId=${leagueId};seasonId=${seasonYear};`);
+    const awayTeam = await Team.get(`id=${boxscore.awayTeamId};leagueId=${leagueId};seasonId=${seasonYear};`);
     // if (!homeTeam && !awayTeam) console.log(Team.cache);
     callback(homeTeam, awayTeam, boxscore);
 }
 
-function printMatchup(homeTeam, awayTeam, boxscore) {
-    console.log(`===== ${homeTeam.name} vs. ${awayTeam.name} =====`);
-}
 function printScores(homeTeam, awayTeam, boxscore) {
     let oldHomeScore = roundStarters(boxscore.homeRoster);
     let oldAwayScore = roundStarters(boxscore.awayRoster);
@@ -149,12 +172,24 @@ function printScores(homeTeam, awayTeam, boxscore) {
 // returns summation of each player's rounded score (according to 2018 scoring rules)
 function roundStarters(roster) {
     let roundedTotal = 0;
+    let roundedRoster = [];
     roster.forEach( (player) => {
         if (player.position != 'Bench') {
-            roundedTotal += roundPlayerScore(player);
+            const roundScore = roundPlayerScore(player)
+            roundedTotal += roundScore;
+            roundedRoster.push({"player":player.player.firstName + " " + player.player.lastName, "roundedScore":roundScore});
         }
     });
-    return roundedTotal
+    // console.log(roundedRoster);
+    return roundedRoster
+}
+
+function sumRoster(roundRoster) {
+    let sum = roundRoster.reduce( (acc,player) => {
+        acc += player.roundedScore;
+        return acc;
+    }, 0);
+    return sum;
 }
 
 // takes in BoxscorePlayer
