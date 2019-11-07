@@ -4,7 +4,7 @@ const myClient = new Client({ leagueId: 564127 });
 const myEspns2 = 'AEAhcHpaQrwFj9PFxcPnkBzat3IbrqJuKYi%2B4UseqG5zZ8NnyYYa2WTURjO2LGwpK2nUnk8VJLQlpW6y8dNPgmjjfxuarOLRP%2B5z0diP0Zh%2B3PlnjTV3ooDsqwkUs7DDngkNWZpp2cl%2BrrrHETkYX3a9SVLX2AUoui6GABkDaKkh78f9pd5XJ0rFpwEtN%2BrDR%2FMRGQD%2FbLPs2UcaofWglevjwpV9t1wUms%2BdEPpe1m3COkIqIfVvM5JWR5CTIM63iWY%3D'
 const mySWID = '{2690D5F2-9AD4-4259-90D5-F29AD4525943}'
 const seasonYear = 2019;
-const leagueId = 564127;
+const leagueId = 564127; //912570;
 const current_week = 9;
 myClient.setCookies({ espnS2: myEspns2, SWID: mySWID });
 
