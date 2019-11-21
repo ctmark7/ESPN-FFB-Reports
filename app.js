@@ -1,15 +1,16 @@
 const { Client, Team, BoxScore} = require('espn-fantasy-football-api/node-dev');
 const axios = require('axios');
-const myClient = new Client({ leagueId: 564127 });
 const myEspns2 = 'AEAhcHpaQrwFj9PFxcPnkBzat3IbrqJuKYi%2B4UseqG5zZ8NnyYYa2WTURjO2LGwpK2nUnk8VJLQlpW6y8dNPgmjjfxuarOLRP%2B5z0diP0Zh%2B3PlnjTV3ooDsqwkUs7DDngkNWZpp2cl%2BrrrHETkYX3a9SVLX2AUoui6GABkDaKkh78f9pd5XJ0rFpwEtN%2BrDR%2FMRGQD%2FbLPs2UcaofWglevjwpV9t1wUms%2BdEPpe1m3COkIqIfVvM5JWR5CTIM63iWY%3D'
 const mySWID = '{2690D5F2-9AD4-4259-90D5-F29AD4525943}'
 const seasonYear = 2019;
-const leagueId = 564127; //912570;
-const current_week = 9;
+const leagueId =  564127; //912570;
+const current_week = 11;
+const myClient = new Client({ leagueId: leagueId });
+
 myClient.setCookies({ espnS2: myEspns2, SWID: mySWID });
 
-// main();
-getBoxScoresForWeek(9);
+main();
+getBoxScoresForWeek(current_week);
 // tryingAsync();
 function getSortedScoresByWeek(schedule) {
     const playedGames = schedule.filter((matchup) => {
@@ -53,6 +54,7 @@ async function getLeagueData() {
                 Cookie: `espn_s2=${myEspns2}; SWID=${mySWID};`
             }
         });
+        console.log(response.headers);
         return response.data;
     } catch (error) {
         console.log(error.response.data);
@@ -134,12 +136,12 @@ async function getBoxScoresForWeek(week) {
             const homeOptimalRoster = maxTeamScore(boxscore.homeRoster);
             const awayOptimalRoster = maxTeamScore(boxscore.awayRoster);
             // console.log(homeOptimalRoster, awayOptimalRoster);
-            console.log(`===== ${teamData[boxscore.homeTeamId].abbrev} vs. ${teamData[boxscore.awayTeamId].abbrev} =====`);
+            console.log(`==================== ${teamData[boxscore.homeTeamId].abbrev}  vs. ${teamData[boxscore.awayTeamId].abbrev} =====`);
             console.log("Actual Score:        " + boxscore.homeScore + ' - ' + boxscore.awayScore);
             console.log("Max Possible Scores: " + sumStarters(homeOptimalRoster) + ' - ' + sumStarters(awayOptimalRoster));
             const homeRoundRoster = roundStarters(boxscore.homeRoster);
             const awayRoundRoster = roundStarters(boxscore.awayRoster);
-            console.log(`2018 Score:             ${sumRoster(homeRoundRoster)} - ${sumRoster(awayRoundRoster)}\n`);
+            console.log(`2018 Score:          ${sumRoster(homeRoundRoster)} - ${sumRoster(awayRoundRoster)}`);
             // if (teamData[boxscore.homeTeamId].abbrev == 'DDC' || teamData[boxscore.homeTeamId].abbrev == 'WIN') {
             //     for (i=0; i < homeRoundRoster.length;i++) {
             //         console.log(`${homeRoundRoster[i].player}:  ${homeRoundRoster[i].roundedScore}      -----       ${awayRoundRoster[i].roundedScore} :${awayRoundRoster[i].player}`);
@@ -230,7 +232,11 @@ function sortRosterByScore(roster) {
     });
     return sorted.sort((a,b) => a.totalPoints < b.totalPoints ? 1 : -1);
 }
+
+function getTeamFormat(league){}
+
 function maxTeamScore(roster) {
+    // need to make it adaptable for differetn roster formats (e.g. 3WR or 2QB leagues)...
     let maxRoster = {
         'TQB': [],   // QB
         'RB': [],    // RB
