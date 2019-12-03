@@ -4,7 +4,7 @@ const myEspns2 = 'AEAhcHpaQrwFj9PFxcPnkBzat3IbrqJuKYi%2B4UseqG5zZ8NnyYYa2WTURjO2
 const mySWID = '{2690D5F2-9AD4-4259-90D5-F29AD4525943}'
 const seasonYear = 2019;
 const leagueId =  564127; //912570;
-const current_week = 11;
+const current_week = 13;
 const myClient = new Client({ leagueId: leagueId });
 
 myClient.setCookies({ espnS2: myEspns2, SWID: mySWID });
